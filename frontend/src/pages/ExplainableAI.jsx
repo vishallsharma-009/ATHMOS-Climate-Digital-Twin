@@ -4,10 +4,19 @@ import { BrainCircuit, Fingerprint, Activity, Network } from "lucide-react";
 export default function ExplainableAI() {
   const { explain, loading } = useClimateData();
 
-  if (loading || !explain) {
+  if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center animate-pulse text-blue-400 gap-2 h-full">
         <BrainCircuit size={24} /> Generating SHAP Interpretations...
+      </div>
+    );
+  }
+
+  if (!explain) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-gray-400 gap-2 h-full flex-col">
+        <BrainCircuit size={40} className="text-gray-500 mb-2 animate-bounce" />
+        <span className="text-lg font-medium text-gray-300">Run a forecast to generate explanations.</span>
       </div>
     );
   }

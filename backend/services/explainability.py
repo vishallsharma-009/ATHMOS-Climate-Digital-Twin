@@ -30,11 +30,11 @@ class ShapExplainer:
             logger.info("Initializing Dummy Explainer due to missing SHAP dependency.")
             return
 
-        background_tensor = background_data.to(self.device)
+        self.background_tensor = background_data.to(self.device)
         
         # We need a wrapper because our model returns a tuple (output, hidden_state)
         # GradientExplainer expects a model that just returns the output tensor
-        class ModelWrapper(torch.nn.Module):
+        class GlobalModelWrapper(torch.nn.Module):
             def __init__(self, core_model):
                 super().__init__()
                 self.core_model = core_model
@@ -42,12 +42,13 @@ class ShapExplainer:
             def forward(self, x):
                 out, _ = self.core_model(x)
                 # We usually want to explain the final prediction step
-                return out[:, -1, :, :, :]
+                # Mean over spatial dimensions to get [batch, channels]
+                return out[:, -1, :, :, :].mean(dim=(2, 3))
                 
-        self.wrapped_model = ModelWrapper(self.model)
+        self.wrapped_model = GlobalModelWrapper(self.model)
         
         try:
-            self.explainer = shap.GradientExplainer(self.wrapped_model, background_tensor)
+            self.explainer = shap.GradientExplainer(self.wrapped_model, self.background_tensor)
             logger.info("Successfully initialized SHAP GradientExplainer.")
         except Exception as e:
             logger.error(f"Failed to initialize SHAP explainer: {e}")
@@ -74,6 +75,10 @@ class ShapExplainer:
         # If multiple output channels, take the mean magnitude across all of them
         if isinstance(shap_values, list):
             shap_mag = np.mean([np.abs(sv) for sv in shap_values], axis=0)
+        elif isinstance(shap_values, np.ndarray) and len(shap_values.shape) == 6:
+            # shap_values shape: [batch, seq, in_channels, H, W, out_channels]
+            # Average across out_channels first (axis 5)
+            shap_mag = np.mean(np.abs(shap_values), axis=5)
         else:
             shap_mag = np.abs(shap_values)
             
@@ -98,11 +103,28 @@ class ShapExplainer:
             return [1.0] * input_data.size(2)
 
         input_data = input_data.to(self.device)
-        shap_values = self.explainer.shap_values(input_data)
+        
+        class LocalModelWrapper(torch.nn.Module):
+            def __init__(self, core_model, lat, lon):
+                super().__init__()
+                self.core_model = core_model
+                self.lat = lat
+                self.lon = lon
+                
+            def forward(self, x):
+                out, _ = self.core_model(x)
+                return out[:, -1, :, self.lat, self.lon]
+                
+        local_wrapper = LocalModelWrapper(self.model, lat_idx, lon_idx)
+        local_explainer = shap.GradientExplainer(local_wrapper, self.background_tensor)
+        shap_values = local_explainer.shap_values(input_data)
         
         if isinstance(shap_values, list):
             # Sum up magnitude across all output channels for the local pixel
             shap_mag = np.sum([np.abs(sv[:, :, :, lat_idx, lon_idx]) for sv in shap_values], axis=0)
+        elif isinstance(shap_values, np.ndarray) and len(shap_values.shape) == 6:
+            # shap_values shape: [batch, seq, in_channels, H, W, out_channels]
+            shap_mag = np.sum(np.abs(shap_values[:, :, :, lat_idx, lon_idx, :]), axis=3)
         else:
             shap_mag = np.abs(shap_values[:, :, :, lat_idx, lon_idx])
             

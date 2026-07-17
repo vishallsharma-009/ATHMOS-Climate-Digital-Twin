@@ -52,11 +52,16 @@ class DigitalTwin:
         self.current_state = None
         self.current_time = datetime.datetime.now()
         
-    def ingest_latest_state(self, dummy_mode=False):
+    def ingest_latest_state(self, state_dict=None, dummy_mode=False):
         """
         Fetches the latest real-world data from the data engine.
         Enforces strict ISRO constraint: No fake data.
         """
+        if state_dict is not None:
+            self.current_state = state_dict
+            logger.info("Ingested state dict directly for Digital Twin.")
+            return
+
         if self.data_pipeline:
             try:
                 # We expect the pipeline to produce a fused dataset

@@ -146,10 +146,10 @@ try:
             
             # Load the latest sequence from real data into the Digital Twin
             last_seq, _ = dataset[len(dataset) - 1]
-            # Convert to dictionary of arrays (shape: [H, W]) for the latest timestep
+            # Convert to dictionary of arrays (shape: [1, H, W]) for the latest timestep
             state_dict = {}
             for i, var_name in enumerate(isro_vars):
-                state_dict[var_name] = last_seq[-1, i].numpy() # Extract the last step of the sequence
+                state_dict[var_name] = last_seq[-1, i].numpy()[np.newaxis, ...] # Extract the last step of the sequence
             dt.ingest_latest_state(state_dict)
             logger.info("Digital Twin ingested real recent climate state.")
         else:
@@ -173,6 +173,23 @@ try:
             logger.info("Successfully bound Predictor and ShapExplainer to Digital Twin.")
         except Exception as explainer_e:
             logger.warning(f"Failed to initialize ShapExplainer (Explainability offline): {explainer_e}")
+            
+        # 3. Load latest state from fused_tensor.npz
+        try:
+            import numpy as np
+            from services.data_loader import load_processed_dataset, ClimateFusionDataset
+            output_tensor_path = os.path.join(os.path.dirname(__file__), "services", "fused_tensor.npz")
+            if os.path.exists(output_tensor_path):
+                fused_ds = load_processed_dataset(output_tensor_path)
+                dataset = ClimateFusionDataset(fused_ds, sequence_length=10, forecast_horizon=7, variables=isro_vars)
+                last_seq, _ = dataset[len(dataset) - 1]
+                state_dict = {}
+                for i, var_name in enumerate(isro_vars):
+                    state_dict[var_name] = last_seq[-1, i].numpy()[np.newaxis, ...]
+                dt.ingest_latest_state(state_dict)
+                logger.info("Successfully loaded current state from fused_tensor.npz for Digital Twin.")
+        except Exception as state_e:
+            logger.warning(f"Failed to load current state from fused_tensor.npz: {state_e}")
         
 except Exception as e:
     logger.error(f"Failed during model initialization: {e}")
