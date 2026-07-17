@@ -19,7 +19,17 @@ build/
 backend/.pytest_cache/
 backend/.mypy_cache/
 
+# Raw datasets
+datasets/imd/
+datasets/insat/
+datasets/processed/
+
+# Trained models
 models/*.pt
 models/*.pth
+models/*.onnx
+backend/services/model/checkpoints/
 
-datasets/processed/
+# Generated outputs
+backend/services/*.npz
+backend/services/*_stats.json
