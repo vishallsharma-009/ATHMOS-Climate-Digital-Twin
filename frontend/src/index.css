@@ -3,5 +3,52 @@
 @tailwind utilities;
 
 body {
-  @apply bg-twin-bg text-gray-100;
+  @apply bg-[#0b0e14] text-gray-100 antialiased overflow-hidden;
+}
+
+/* Custom Scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2); 
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1); 
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2); 
+}
+
+/* Glass panel utility */
+.glass-panel {
+  @apply bg-[#121822]/80 backdrop-blur-md border border-gray-800 rounded-xl shadow-lg;
+}
+
+/* Map specific overrides */
+.leaflet-container {
+  background: #0b0e14 !important;
+  font-family: inherit !important;
+}
+
+.leaflet-control-zoom a {
+  background-color: #1f2937 !important;
+  color: #e5e7eb !important;
+  border-color: #374151 !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: #374151 !important;
+}
+
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background-color: #1f2937 !important;
+  color: #e5e7eb !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3) !important;
 }
