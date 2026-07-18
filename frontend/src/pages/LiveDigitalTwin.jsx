@@ -13,9 +13,9 @@ export default function LiveDigitalTwin() {
       
       {/* Left Area: Map and Controls */}
       <div className="flex-1 flex flex-col gap-4 min-h-0">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <h2 className="text-xl font-bold text-gray-100">Live Digital Twin State</h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {["rainfall", "temperature", "LST", "SST"].map((mode) => (
               <button
                 key={mode}
@@ -124,11 +124,11 @@ export default function LiveDigitalTwin() {
           </h3>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700 text-center">
-              <div className="text-xl font-bold text-gray-200">{dashboard?.system_health?.model_status === "initialized" ? "99.8%" : "N/A"}</div>
+              <div className="text-xl font-bold text-gray-200">{dashboard?.system_status === "operational" ? "99.8%" : "N/A"}</div>
               <div className="text-xs text-gray-500 mt-1">Accuracy</div>
             </div>
             <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700 text-center">
-              <div className="text-xl font-bold text-green-400">{dashboard?.system_health?.fusion_status === "ready" ? "OK" : "Wait"}</div>
+              <div className="text-xl font-bold text-green-400">{dashboard?.system_status === "operational" ? "OK" : "Wait"}</div>
               <div className="text-xs text-gray-500 mt-1">Pipeline</div>
             </div>
           </div>

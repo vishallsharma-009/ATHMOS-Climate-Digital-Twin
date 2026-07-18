@@ -23,8 +23,8 @@ const links = [
 
 export default function Sidebar() {
   return (
-    <aside className="w-64 bg-gray-900 border-r border-gray-800 p-4 flex flex-col gap-2 flex-shrink-0">
-      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-3">
+    <aside className="w-16 md:w-64 bg-gray-900 border-r border-gray-800 p-2 md:p-4 flex flex-col gap-2 flex-shrink-0">
+      <div className="hidden md:block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-3">
         Command Center
       </div>
       {links.map((link) => (
@@ -33,15 +33,15 @@ export default function Sidebar() {
           to={link.to}
           end={link.to === "/"}
           className={({ isActive }) =>
-            `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
+            `flex items-center justify-center md:justify-start gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
               isActive
                 ? "bg-blue-600/20 text-blue-400 border border-blue-500/30 font-medium shadow-[0_0_15px_rgba(59,130,246,0.15)]"
                 : "text-gray-400 hover:bg-gray-800 hover:text-gray-200 border border-transparent"
             }`
           }
         >
-          <link.icon size={18} className="opacity-80" />
-          {link.label}
+          <link.icon size={18} className="opacity-80 flex-shrink-0" />
+          <span className="hidden md:inline">{link.label}</span>
         </NavLink>
       ))}
     </aside>

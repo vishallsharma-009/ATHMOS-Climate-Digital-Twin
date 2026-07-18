@@ -1,10 +1,10 @@
 import { useClimateData } from "../context/ClimateContext";
-import { BrainCircuit, Fingerprint, Activity, Network } from "lucide-react";
+import { BrainCircuit, Fingerprint, Network } from "lucide-react";
 
 export default function ExplainableAI() {
-  const { explain, loading } = useClimateData();
+  const { explain, explainLoading } = useClimateData();
 
-  if (loading) {
+  if (explainLoading) {
     return (
       <div className="flex-1 flex items-center justify-center animate-pulse text-blue-400 gap-2 h-full">
         <BrainCircuit size={24} /> Generating SHAP Interpretations...
@@ -105,7 +105,7 @@ export default function ExplainableAI() {
           </p>
 
           <div className="flex flex-col gap-4">
-            {Object.entries(local_explanation || {}).slice(0, 5).map(([feature, val]) => {
+            {Object.entries(local_explanation?.contributions || {}).slice(0, 5).map(([feature, val]) => {
               const impact = Math.abs(val) * 100;
               const isPositive = val > 0;
               return (

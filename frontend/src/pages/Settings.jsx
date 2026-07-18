@@ -21,7 +21,7 @@ export default function Settings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-400 mb-1">API Endpoint URL</label>
-              <input type="text" defaultValue="http://localhost:8000/api" className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-blue-500 transition-colors" />
+              <input type="text" defaultValue="http://localhost:8000" className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-blue-500 transition-colors" />
             </div>
             <div>
               <label className="block text-sm text-gray-400 mb-1">Data Polling Interval (seconds)</label>

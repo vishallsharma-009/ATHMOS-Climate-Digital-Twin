@@ -12,8 +12,12 @@ export default function ForecastLab() {
   const visibleTimeline = forecast ? forecast.slice(0, horizon === "3day" ? 3 : horizon === "tomorrow" ? 2 : horizon === "today" ? 1 : 7) : [];
   
   // Aggregate mock metrics
-  const expectedRain = visibleTimeline.reduce((acc, curr) => acc + (curr.imd_rainfall_mm || 0), 0).toFixed(1);
-  const maxTemp = Math.max(...visibleTimeline.map(t => t.tmax_c || 0)).toFixed(1);
+  const expectedRain = visibleTimeline.length > 0 
+    ? visibleTimeline.reduce((acc, curr) => acc + (curr.imd_rainfall_mm || 0), 0).toFixed(1) 
+    : "--";
+  const maxTemp = visibleTimeline.length > 0 
+    ? Math.max(...visibleTimeline.map(t => t.tmax_c || 0)).toFixed(1) 
+    : "--";
 
   return (
     <div className="flex flex-col gap-6 h-full p-2">

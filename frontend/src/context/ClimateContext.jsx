@@ -12,6 +12,7 @@ export function ClimateProvider({ children }) {
   const [selectedRegion, setSelectedRegion] = useState("gujarat");
   
   const [loading, setLoading] = useState(true);
+  const [explainLoading, setExplainLoading] = useState(true);
   const [error, setError] = useState(null);
   
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -19,27 +20,38 @@ export function ClimateProvider({ children }) {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [dashRes, foreRes, expRes, regsRes] = await Promise.all([
+      setExplainLoading(true);
+      const [dashRes, foreRes, regsRes] = await Promise.all([
         api.getDashboard().catch(() => null),
         api.getForecast().catch(() => null),
-        api.getExplain().catch(() => null),
         api.getRegions().catch(() => ["gujarat"])
       ]);
       
       if (dashRes) setDashboard(dashRes);
       if (foreRes) setForecast(foreRes.forecast);
-      if (expRes) setExplain(expRes);
       if (regsRes) {
         setRegions(regsRes);
         if (regsRes.length > 0 && !selectedRegion) setSelectedRegion(regsRes[0]);
       }
       
       setLastUpdated(new Date());
+      setLoading(false);
+
+      // Lazily fetch explain data
+      api.getExplain()
+        .then((expRes) => {
+          if (expRes) setExplain(expRes);
+        })
+        .catch((err) => console.error("Explain data lazy load error", err))
+        .finally(() => {
+          setExplainLoading(false);
+        });
+
     } catch (err) {
       console.error("Context initial fetch error", err);
       setError("Failed to connect to Digital Twin.");
-    } finally {
       setLoading(false);
+      setExplainLoading(false);
     }
   };
 
@@ -80,6 +92,7 @@ export function ClimateProvider({ children }) {
     selectedRegion,
     setSelectedRegion,
     loading,
+    explainLoading,
     error,
     lastUpdated,
     refreshAll: fetchInitialData

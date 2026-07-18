@@ -4,8 +4,8 @@ import { Server, Activity, Database, Cpu, HardDrive } from "lucide-react";
 export default function SystemHealth() {
   const { dashboard, loading, lastUpdated } = useClimateData();
 
-  const status = dashboard?.system_health?.model_status || "offline";
-  const isOnline = status === "initialized" || status === "online" || status === "ready";
+  const status = dashboard?.system_status || "offline";
+  const isOnline = status === "operational" || status === "initialized" || status === "online" || status === "ready";
 
   return (
     <div className="flex flex-col gap-6 h-full p-2">

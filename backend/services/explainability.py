@@ -54,6 +54,19 @@ class ShapExplainer:
             logger.error(f"Failed to initialize SHAP explainer: {e}")
             raise
 
+    def _ensure_background_shape(self, spatial_shape: tuple):
+        if not SHAP_AVAILABLE:
+            return
+        if self.background_tensor.shape[3:] != spatial_shape:
+            logger.info(f"Reinitializing SHAP explainer background tensor to match spatial shape: {spatial_shape}")
+            b, s, c = self.background_tensor.shape[:3]
+            h, w = spatial_shape
+            self.background_tensor = torch.zeros((b, s, c, h, w), dtype=self.background_tensor.dtype, device=self.device)
+            try:
+                self.explainer = shap.GradientExplainer(self.wrapped_model, self.background_tensor)
+            except Exception as e:
+                logger.error(f"Failed to reinitialize SHAP explainer: {e}")
+
     def get_feature_importance(self, input_data: torch.Tensor, variable_names: list) -> dict:
         """
         Computes the global feature importance for the given input batch.
@@ -66,6 +79,7 @@ class ShapExplainer:
             return {var_name: val for var_name in variable_names}
 
         input_data = input_data.to(self.device)
+        self._ensure_background_shape(input_data.shape[3:])
         
         # shap_values is a list of tensors (one per output channel), 
         # or a single tensor if output has 1 channel.
@@ -103,6 +117,7 @@ class ShapExplainer:
             return [1.0] * input_data.size(2)
 
         input_data = input_data.to(self.device)
+        self._ensure_background_shape(input_data.shape[3:])
         
         class LocalModelWrapper(torch.nn.Module):
             def __init__(self, core_model, lat, lon):

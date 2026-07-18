@@ -77,7 +77,8 @@ def scenario(temp_anomaly: float = 0.0, rain_anomaly: float = 0.0):
     if temp_anomaly != 0.0:
         dt.scenario_engine.add_anomaly("tmax_c", temp_anomaly)
     if rain_anomaly != 0.0:
-        dt.scenario_engine.add_anomaly("rainfall_mm", rain_anomaly)
+        dt.scenario_engine.add_anomaly("imd_rainfall_mm", rain_anomaly)
+        dt.scenario_engine.add_anomaly("insat_rainfall_mm", rain_anomaly)
         
     divergent_timeline = dt.generate_timeline(horizon=7)
     

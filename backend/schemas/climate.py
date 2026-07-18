@@ -3,7 +3,8 @@ from typing import List, Dict, Any
 
 class DashboardResponse(BaseModel):
     region: str
-    rainfall_mm: float
+    imd_rainfall_mm: float
+    insat_rainfall_mm: float
     tmax_c: float
     tmin_c: float
     lst_c: float
@@ -13,7 +14,8 @@ class DashboardResponse(BaseModel):
 
 class ForecastDay(BaseModel):
     day: int
-    rainfall_mm: float
+    imd_rainfall_mm: float
+    insat_rainfall_mm: float
     tmax_c: float
     tmin_c: float
     lst_c: float

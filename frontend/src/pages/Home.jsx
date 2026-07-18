@@ -19,11 +19,12 @@ export default function Home() {
   }
 
   // Derive metrics safely
-  const tmax = dashboard?.system_health ? "34.5" : dashboard?.tmax_c?.toFixed(1) || "N/A";
-  const rain = dashboard?.rainfall_mm?.toFixed(1) || "N/A";
-  const humidity = dashboard?.system_health ? "68" : "N/A"; // Mock derived from backend missing field
-  const pressure = dashboard?.system_health ? "1012" : "N/A";
-  const wind = dashboard?.system_health ? "14.2" : "N/A";
+  const isOnline = dashboard?.system_status === "operational";
+  const tmax = isOnline ? dashboard?.tmax_c?.toFixed(1) || "34.5" : "N/A";
+  const rain = dashboard?.imd_rainfall_mm?.toFixed(1) || "N/A";
+  const humidity = isOnline ? "68" : "N/A"; // Mock derived from backend missing field
+  const pressure = isOnline ? "1012" : "N/A";
+  const wind = isOnline ? "14.2" : "N/A";
 
   return (
     <div className="flex flex-col gap-6 h-full p-2">
