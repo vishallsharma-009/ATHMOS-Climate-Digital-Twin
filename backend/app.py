@@ -27,7 +27,7 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     error_msg = str(exc)
-    if isinstance(exc, RuntimeError) and any(kw in error_msg for kw in ["ISRO datasets", "Awaiting model training", "not configured", "not initialized"]):
+    if isinstance(exc, RuntimeError) and any(kw in error_msg for kw in ["ISRO datasets", "Awaiting model training", "not configured", "not initialized", "Normalizer"]):
         logger.warning(f"Service unavailable: {exc}")
         return JSONResponse(
             status_code=503,
@@ -194,6 +194,28 @@ try:
         
 except Exception as e:
     logger.error(f"Failed during model initialization: {e}")
+
+# Load the Normalizer once at startup. Architecture: the DigitalTwin is the
+# single owner of inverse normalization at the API edge. The stats are produced
+# by the fusion pipeline (run_pipeline -> *_norm_stats.json).
+# NOTE: if the stats are missing we do NOT fall back — the /dashboard and
+# /forecast endpoints will fail with a clear RuntimeError (mapped to 503)
+# rather than serving normalized values as if they were physical °C / mm.
+try:
+    import os
+    from services.data_loader import Normalizer
+    _norm_stats_path = os.path.join(os.path.dirname(__file__), "services", "fused_tensor_norm_stats.json")
+    if os.path.exists(_norm_stats_path):
+        dt.normalizer = Normalizer.load(_norm_stats_path)
+        logger.info("Normalizer loaded from %s.", _norm_stats_path)
+    else:
+        logger.error(
+            "Normalizer stats NOT found at %s. The /dashboard and /forecast "
+            "endpoints will fail until the fusion pipeline has run (run_pipeline).",
+            _norm_stats_path,
+        )
+except Exception as _norm_e:
+    logger.error("Failed to load Normalizer: %s", _norm_e)
 
 if __name__ == "__main__":
     import uvicorn

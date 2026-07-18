@@ -2,6 +2,8 @@ import logging
 import numpy as np
 import datetime
 
+from .physics_engine import PhysicsEngine
+
 logger = logging.getLogger("athmos.digital_twin")
 
 class ScenarioEngine:
@@ -43,12 +45,14 @@ class DigitalTwin:
     Manages the current climate state, orchestrates forecasts via the Predictor,
     and handles scenario injections via the ScenarioEngine.
     """
-    def __init__(self, predictor=None, data_pipeline=None):
+    def __init__(self, predictor=None, data_pipeline=None, normalizer=None):
         self.predictor = predictor
         self.data_pipeline = data_pipeline
+        self.normalizer = normalizer
+        self.physics_engine = PhysicsEngine()
         self.scenario_engine = ScenarioEngine()
         self.explainer = None
-        
+
         self.current_state = None
         self.current_time = datetime.datetime.now()
         
@@ -82,17 +86,22 @@ class DigitalTwin:
     def get_dashboard_metrics(self):
         """
         Aggregates the current spatial state into high-level dashboard metrics.
+        The stored current_state is NORMALIZED; we inverse-normalize to physical
+        units for display only (the DigitalTwin is the anti-corruption boundary).
         """
         if not self.current_state:
             self.ingest_latest_state()
-            
+
+        # current_state is normalized; convert to physical units for display.
+        physical_state = self._inverse_normalize_state(self.current_state)
+
         return {
-            "tmax_c": round(float(np.mean(self.current_state.get("tmax_c", 0))), 1),
-            "tmin_c": round(float(np.mean(self.current_state.get("tmin_c", 0))), 1),
-            "lst_c": round(float(np.mean(self.current_state.get("lst_c", 0))), 1),
-            "sst_c": round(float(np.mean(self.current_state.get("sst_c", 0))), 1),
-            "imd_rainfall_mm": round(float(np.mean(self.current_state.get("imd_rainfall_mm", 0))), 1),
-            "insat_rainfall_mm": round(float(np.mean(self.current_state.get("insat_rainfall_mm", 0))), 1),
+            "tmax_c": round(float(np.mean(physical_state.get("tmax_c", 0))), 1),
+            "tmin_c": round(float(np.mean(physical_state.get("tmin_c", 0))), 1),
+            "lst_c": round(float(np.mean(physical_state.get("lst_c", 0))), 1),
+            "sst_c": round(float(np.mean(physical_state.get("sst_c", 0))), 1),
+            "imd_rainfall_mm": round(float(np.mean(physical_state.get("imd_rainfall_mm", 0))), 1),
+            "insat_rainfall_mm": round(float(np.mean(physical_state.get("insat_rainfall_mm", 0))), 1),
             "forecast_confidence_pct": 88,
             "system_status": "operational",
             "region": "Gujarat"
@@ -102,23 +111,32 @@ class DigitalTwin:
         """
         Generates a chronological forecast for `horizon` days.
         If a scenario is active, it predicts the divergent timeline.
+
+        Architecture: predictor.predict returns NORMALIZED output. This
+        DigitalTwin method is the anti-corruption boundary — it
+        inverse-normalizes to physical units and applies physics, then aggregates.
         """
         if not self.current_state:
             self.ingest_latest_state()
-            
-        # 1. Apply scenarios to current state
+
+        # 1. Apply scenarios to current state (stays normalized, like the model)
         sim_state = self.scenario_engine.apply_scenarios(self.current_state)
-        
+
         # 2. Package into tensor shape [batch=1, seq=1, channels, H, W]
         if self.predictor:
             # Assumes predictor knows the channel order
             channels = [sim_state[v] for v in self.predictor.variables_list]
             input_tensor = np.stack(channels, axis=1) # [1, C, H, W]
             input_sequence = np.expand_dims(input_tensor, axis=1) # [1, 1, C, H, W]
-            
-            # 3. Forecast
+
+            # 3. Forecast (NORMALIZED output from the model/predictor)
             future_arrays = self.predictor.predict(input_sequence, horizon=horizon)
-            
+
+            # 4. DigitalTwin edge: inverse-normalize to physical units
+            future_arrays = self._inverse_normalize(future_arrays, self.predictor.variables_list)
+            # 5. DigitalTwin edge: enforce physics on the PHYSICAL tensor
+            future_arrays = self._apply_physics(future_arrays, self.predictor.variables_list)
+
             timeline = []
             for i in range(horizon):
                 day_forecast = {}
@@ -127,10 +145,97 @@ class DigitalTwin:
                     day_forecast[var_name] = round(float(np.mean(future_arrays[0, i, c_idx])), 2)
                 day_forecast["day"] = i + 1
                 timeline.append(day_forecast)
-                
+
             return timeline
         else:
             raise RuntimeError("Predictor model is not configured. Cannot generate timeline without real model.")
+
+    # ------------------------------------------------------------------
+    # Inverse-normalization + physics (edge layer owned by DigitalTwin)
+    # ------------------------------------------------------------------
+    def _inverse_normalize(self, tensor, variables_list):
+        """
+        Inverse-normalize a [..., C, H, W] numpy tensor channel-wise using the
+        loaded Normalizer stats. Returns a physical-units tensor of the same
+        shape. Raises if the Normalizer is missing or a variable lacks stats —
+        the system must NEVER emit normalized values labeled as physical.
+        """
+        if self.normalizer is None:
+            raise RuntimeError(
+                "Normalizer is not loaded; cannot produce physical (°C / mm) "
+                "values. Run the fusion pipeline (run_pipeline) to generate "
+                "fused_tensor_norm_stats.json."
+            )
+        out = np.asarray(tensor, dtype=np.float64)
+        for c_idx, var_name in enumerate(variables_list):
+            stats = self.normalizer.stats.get(var_name)
+            if stats is None:
+                raise RuntimeError(
+                    f"Normalizer has no stats for '{var_name}'; refusing to "
+                    f"emit un-normalized (physical) values for a variable that "
+                    f"was trained/served in normalized space."
+                )
+            out[..., c_idx, :, :] = out[..., c_idx, :, :] * stats["std"] + stats["mean"]
+        return out
+
+    def _inverse_normalize_state(self, state_dict):
+        """
+        Inverse-normalize the current_state dict (each value is a [1, H, W] array)
+        to physical units. The stored state remains normalized.
+        """
+        if self.normalizer is None:
+            raise RuntimeError(
+                "Normalizer is not loaded; cannot produce physical (°C / mm) "
+                "values. Run the fusion pipeline (run_pipeline) to generate "
+                "fused_tensor_norm_stats.json."
+            )
+        out = {}
+        for var, data in state_dict.items():
+            stats = self.normalizer.stats.get(var)
+            if stats is None:
+                raise RuntimeError(
+                    f"Normalizer has no stats for '{var}'; refusing to emit "
+                    f"un-normalized (physical) values."
+                )
+            out[var] = np.asarray(data, dtype=np.float64) * stats["std"] + stats["mean"]
+        return out
+
+    def _apply_physics(self, tensor, variables_list):
+        """
+        Apply the PhysicsEngine constraints on a PHYSICAL-units [1, horizon, C, H, W]
+        tensor. Channels are built into a dict so cross-variable rules (e.g.
+        tmin <= tmax) are enforced. Validates shape, channel count, and that no
+        variable is silently dropped.
+        """
+        # 1. Shape validation: must be 5D [batch, horizon, C, H, W], batch == 1.
+        if tensor.ndim != 5:
+            raise ValueError(
+                f"_apply_physics expects a 5D tensor [batch, horizon, C, H, W]; "
+                f"got {tensor.ndim}D with shape {tensor.shape}."
+            )
+        if tensor.shape[0] != 1:
+            raise ValueError(f"Expected batch dimension of 1, got {tensor.shape[0]}.")
+        # 2. Channel count must match variables_list.
+        if tensor.shape[2] != len(variables_list):
+            raise ValueError(
+                f"Forecast channel count ({tensor.shape[2]}) does not match "
+                f"variables_list length ({len(variables_list)})."
+            )
+        # 3. Build per-channel dict; verify every variable is present (no silent drops).
+        channels = {
+            var_name: tensor[0, :, c_idx, :, :]
+            for c_idx, var_name in enumerate(variables_list)
+        }
+        if len(channels) != len(variables_list):
+            raise ValueError("Duplicate variable names detected in variables_list.")
+        constrained = self.physics_engine.apply_constraints(channels)
+        missing = [v for v in variables_list if v not in constrained]
+        if missing:
+            raise RuntimeError(f"PhysicsEngine dropped unhandled variables: {missing}")
+        out = np.asarray(tensor, dtype=np.float64)
+        for c_idx, var_name in enumerate(variables_list):
+            out[0, :, c_idx, :, :] = constrained[var_name]
+        return out
 
     def get_explainability(self, lat_idx=0, lon_idx=0) -> dict:
         """
