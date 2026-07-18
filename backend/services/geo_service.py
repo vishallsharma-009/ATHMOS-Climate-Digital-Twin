@@ -31,14 +31,31 @@ def get_region_geojson(region: str):
     """
     Returns a GeoJSON FeatureCollection for the requested region by reading the corresponding file.
     """
+    if not isinstance(region, str) or not region:
+        return {"error": f"Region '{region}' not found"}
+
+    # Only allow exact, known region names (basenames of existing .geojson files).
+    # This prevents directory traversal via crafted 'region' values such as
+    # "../../etc/passwd".
+    allowed_regions = list_regions()
+    if region not in allowed_regions:
+        return {"error": f"Region '{region}' not found"}
+
+    # Defensive second layer: ensure the resolved path stays inside the
+    # geojson directory even if region somehow passed the check above.
     geojson_dir = _get_geojson_dir()
-    filepath = os.path.join(geojson_dir, f"{region}.geojson")
-    
+    filepath = os.path.join(geojson_dir, f"{os.path.basename(region)}.geojson")
+    base_dir = os.path.realpath(geojson_dir)
+    resolved = os.path.realpath(filepath)
+    if resolved != os.path.join(base_dir, f"{os.path.basename(region)}.geojson") \
+            and not resolved.startswith(base_dir + os.sep):
+        return {"error": f"Region '{region}' not found"}
+
     if os.path.exists(filepath):
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
             return {"error": f"Failed to parse GeoJSON for region '{region}': {str(e)}"}
-            
+
     return {"error": f"Region '{region}' not found"}
